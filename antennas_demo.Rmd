@@ -1,0 +1,79 @@
+---
+title: "Antennas in The Netherlands"
+subtitle: "A leaflet demo"
+author: "Hugo van den Berg"
+date: "2 oktober 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+## Introduction
+
+This document features an interactive map of the Netherlands depicting all
+registered antennas with their respective height and purpose, as well as the
+municipality it is registered in.
+
+```{r load_libraries, echo=FALSE}
+library(magrittr) # v1.5
+library(dplyr) # v0.5.0
+
+library(htmltools) # v0.3.5
+library(leaflet) # v1.0.1
+library(rgdal) # v1.1-10
+```
+
+## Data
+
+The data is available from [Imergis](http://www.imergis.nl/asp/47.asp) (in
+Dutch), which is a site listing publicly available geographic data including
+administrative borders, infrastructure, and point objects such as important
+buildings, and of course the *Antenneregister*.
+The dataset contains the name of the municipality, purpose, coordinates and
+height in meters.
+
+```{r load_data}
+# Download file if it's missing
+if (!file.exists('./gisdata/2015-09-Antenneregister-RD.shp')) {
+    dataurl <- 'http://www.imergis.nl/shp/2015-09-Antenneregister-RD-shp.zip'
+    localzip <- '2015-09-Antenneregister-RD-shp.zip'
+    download.file(dataurl, localzip)
+    unzip(localzip, exdir = './gisdata')
+}
+antennas <- readOGR(
+    dsn = './gisdata', # For shapefiles point at directory above
+    layer = '2015-09-Antenneregister-RD', # Shapefile name
+    verbose = FALSE # Hide output
+    )
+
+# Convert coordinates from Dutch Rijksdriehoek to WGS84 (EPSG:4326)
+antennas84 <- antennas %>% spTransform(CRS('+init=EPSG:4326'))
+
+# Labels (%<>% is an advanced pipe operator from the magrittr package)
+antennas84@data %<>%
+    mutate(LABEL = paste0('Purpose: ', htmlEscape(TOEPASSING),
+                          '<br/>Municipality: ', htmlEscape(GEMEENTE),
+                          '<br/>Height: ', htmlEscape(ANT_HOOGTE), ' m'))
+```
+
+## Plotting
+
+To plot the `r nrow(antennas84)` antennas on the map we use the leaflet
+library, clustering them when zoomed out.
+
+```{r leaflet, out.width=910,dpi=150}
+antennas84 %>%
+    leaflet() %>%
+    addTiles()%>%
+    addMarkers(popup = antennas84$LABEL,
+               clusterOptions = markerClusterOptions())
+```
+
+## Libraries
+
+This document was built using the following libraries:
+
+```{r load_libraries}
+```
